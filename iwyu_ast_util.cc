@@ -139,6 +139,8 @@ using clang::SourceLocation;
 using clang::SourceManager;
 using clang::SourceRange;
 using clang::Stmt;
+using clang::SubstNonTypeTemplateParmExpr;
+using clang::SubstTemplateTemplateParmStorage;
 using clang::SubstTemplateTypeParmType;
 using clang::TagDecl;
 using clang::TagType;
@@ -1578,6 +1580,28 @@ optional<unsigned> GetNumWrittenTplArgs(ArrayRef<TemplateArgument> args) {
     return std::nullopt;
   }
   return args.size();
+}
+
+bool IsSubstitutedPackElement(const TemplateArgument& arg) {
+  switch (arg.getKind()) {
+    case TemplateArgument::Type: {
+      const auto* subst =
+          dyn_cast<SubstTemplateTypeParmType>(arg.getAsType().getTypePtr());
+      return subst && subst->getPackIndex();
+    }
+    case TemplateArgument::Expression: {
+      const auto* subst = dyn_cast<SubstNonTypeTemplateParmExpr>(
+          arg.getAsExpr()->IgnoreImplicit());
+      return subst && subst->getPackIndex();
+    }
+    case TemplateArgument::Template: {
+      const SubstTemplateTemplateParmStorage* subst =
+          arg.getAsTemplate().getAsSubstTemplateTemplateParm();
+      return subst && subst->getPackIndex();
+    }
+    default:
+      return false;
+  }
 }
 
 bool IsStdNonProvidingTypedef(const TypedefNameDecl* decl) {

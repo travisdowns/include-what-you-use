@@ -818,6 +818,11 @@ unsigned GetTplParamNumberWithoutPack(const clang::TemplateDecl*);
 std::optional<unsigned> GetNumWrittenTplArgs(
     llvm::ArrayRef<clang::TemplateArgument> args);
 
+// Returns true if the given argument of an instantiated template
+// specialization was substituted for one element of a parameter pack, as
+// each argument of 'Pair<Ts...>' is.
+bool IsSubstitutedPackElement(const clang::TemplateArgument& arg);
+
 // I/O stream typedefs should be considered as non-providing even if they are
 // redefined after the underlying template definitions in some implementation.
 // Their canonical header is <iosfwd>, but when used in a context requiring
