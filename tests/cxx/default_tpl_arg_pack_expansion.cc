@@ -11,9 +11,9 @@
 
 // Tests which declarations IWYU reports for template specializations written
 // with a pack expansion. 'Triple<Ts...>' doesn't say whether the default
-// argument of 'Triple' is used until 'Ts' is known, so in a template
-// definition IWYU reports a use of any declaration of 'Triple', not of the
-// redeclaration in -i2.h that gives the default.
+// argument of 'Triple' is used until 'Ts' is known, so the template definition
+// only needs some declaration of 'Triple', and an instantiation that uses the
+// default needs the redeclaration in -i2.h that gives it.
 
 #include "tests/cxx/default_tpl_arg_pack_expansion-d1.h"
 
@@ -30,21 +30,21 @@ struct Holder {
   Triple<Ts...>* p;
 };
 
-// TODO: this instantiation uses the default argument of 'Triple', so IWYU
-// should require -i2.h, rather than suggest removing the only include that
-// provides it.
+// IWYU: Triple is...*default_tpl_arg_pack_expansion-i2.h
 Holder<char, long> two_args;
+Holder<char, long, short> three_args;
 
 template <typename... Ts>
 // IWYU: Triple needs a declaration
 using TripleAlias = Triple<Ts...>;
 
-// TODO: as above, this uses the default argument of 'Triple'.
+// IWYU: Triple is...*default_tpl_arg_pack_expansion-i2.h
 TripleAlias<char, long>* alias;
 
 /**** IWYU_SUMMARY
 
 tests/cxx/default_tpl_arg_pack_expansion.cc should add these lines:
+#include "tests/cxx/default_tpl_arg_pack_expansion-i2.h"
 template <typename A, typename B, typename C> struct Triple;
 template <typename A, typename B> struct Pair;
 
@@ -52,6 +52,7 @@ tests/cxx/default_tpl_arg_pack_expansion.cc should remove these lines:
 - #include "tests/cxx/default_tpl_arg_pack_expansion-d1.h"  // lines XX-XX
 
 The full include-list for tests/cxx/default_tpl_arg_pack_expansion.cc:
+#include "tests/cxx/default_tpl_arg_pack_expansion-i2.h"  // for Triple
 template <typename A, typename B, typename C> struct Triple;
 template <typename A, typename B> struct Pair;
 template <typename T> struct Trait;  // lines XX-XX+1

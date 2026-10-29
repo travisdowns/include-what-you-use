@@ -4024,10 +4024,8 @@ class InstantiatedTemplateVisitor
                      const char* comment = nullptr,
                      UseFlags extra_use_flags = 0,
                      bool report_using_decl_only = false) override {
-    const SourceLocation actual_used_loc = GetLocOfTemplateThatProvides(decl);
     // Report use only if template doesn't itself provide the declaration.
-    if (!actual_used_loc.isValid() ||
-        GetFileEntry(actual_used_loc) == GetFileEntry(caller_loc())) {
+    if (!IsProvidedByTemplateInOtherFile(decl)) {
       // Let all the currently active types and decls know about this
       // report, so they can update their cache entries.
       for (CacheStoringScope* storer : cache_storers_)
@@ -4281,7 +4279,34 @@ class InstantiatedTemplateVisitor
     if (!CanForwardDeclareType(current_ast_node()))
       ReportExplicitInstantiations(type);
 
+    ReportDefTplArgsFromPackExpansion(type);
+
     return Base::VisitTemplateSpecializationType(type);
+  }
+
+  // Whether a specialization written with a pack expansion, like 'Pair<Ts...>',
+  // uses default template arguments depends on the number of pack elements, so
+  // IwyuAstConsumer can't tell from the template as written. Report the
+  // redeclaration giving the first default used for the instantiation instead.
+  void ReportDefTplArgsFromPackExpansion(
+      const TemplateSpecializationType* type) {
+    const TemplateDecl* tpl = type->getTemplateName().getAsTemplateDecl();
+    if (!tpl)
+      return;
+    llvm::ArrayRef<TemplateArgument> args = type->template_arguments();
+    const optional<unsigned> num_args = GetNumWrittenTplArgs(args);
+    if (!num_args || *num_args >= GetTplParamNumberWithoutPack(tpl) ||
+        !any_of(args, IsSubstitutedPackElement)) {
+      return;
+    }
+    const TemplateDecl* redecl = GetRedeclSpecifyingDefArg(*num_args, tpl);
+    if (IsProvidedByTemplateInOtherFile(redecl))
+      return;
+    for (CacheStoringScope* storer : cache_storers_)
+      storer->NoteUncacheableUse();
+    // A forward-declare use, so that the redeclaration itself is required
+    // rather than the definition. This visitor's override drops those.
+    Base::ReportDeclForwardDeclareUse(caller_loc(), redecl);
   }
 
   void ReportExplicitInstantiations(const Type* type) {
@@ -4511,6 +4536,12 @@ class InstantiatedTemplateVisitor
 
   bool IsProvidedByTemplate(const NamedDecl* decl) const {
     return GetLocOfTemplateThatProvides(decl).isValid();
+  }
+
+  bool IsProvidedByTemplateInOtherFile(const NamedDecl* decl) const {
+    const SourceLocation provider_loc = GetLocOfTemplateThatProvides(decl);
+    return provider_loc.isValid() &&
+           GetFileEntry(provider_loc) != GetFileEntry(caller_loc());
   }
 
   // clang desugars template types, so Foo<MyTypedef>() gets turned

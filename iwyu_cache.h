@@ -144,7 +144,8 @@ class CacheStoringScope {
   }
 
   ~CacheStoringScope() {
-    cache_->Insert(key_, resugar_map_, reported_types_, reported_decls_);
+    if (!uncacheable_)
+      cache_->Insert(key_, resugar_map_, reported_types_, reported_decls_);
     cache_storers_->erase(this);
   }
 
@@ -156,6 +157,11 @@ class CacheStoringScope {
   void NoteReportedDecl(const clang::NamedDecl* decl) {
     reported_decls_.insert(decl);
   }
+  // Called when a use is reported that the cache can't replay, because the
+  // cache holds full uses only.
+  void NoteUncacheableUse() {
+    uncacheable_ = true;
+  }
 
  private:
   set<CacheStoringScope*>* const cache_storers_;
@@ -164,6 +170,7 @@ class CacheStoringScope {
   const map<const clang::Type*, const clang::Type*>& resugar_map_;
   set<const clang::Type*> reported_types_;
   set<const clang::NamedDecl*> reported_decls_;
+  bool uncacheable_ = false;
 };
 
 }  // namespace include_what_you_use
